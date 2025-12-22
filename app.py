@@ -1,13 +1,11 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import joblib
 from pathlib import Path
+import joblib
 
-# ===============================
-# Load model & scaler
-# ===============================
 BASE_DIR = Path(__file__).resolve().parent
+
 MODEL_PATH = BASE_DIR / "models" / "fraud_rf_smote.pkl"
 SCALER_PATH = BASE_DIR / "models" / "scaler.pkl"
 
