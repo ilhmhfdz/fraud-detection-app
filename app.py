@@ -1,81 +1,156 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from pathlib import Path
 import joblib
+from pathlib import Path
 
-BASE_DIR = Path(__file__).resolve().parent
-
-MODEL_PATH = BASE_DIR / "models" / "fraud_rf_smote.pkl"
-SCALER_PATH = BASE_DIR / "models" / "scaler.pkl"
-
-model = joblib.load(MODEL_PATH)
-scaler = joblib.load(SCALER_PATH)
-
-# ===============================
-# UI
-# ===============================
-st.set_page_config(page_title="Fraud Detection App", layout="centered")
-
-st.title("Credit Card Fraud Detection")
-st.write(
-    """
-    This app detects whether a transaction is **Fraud** or **Non-Fraud**
-    using a Machine Learning model (RandomForest + SMOTE).
-    """
+# =========================
+# CONFIG
+# =========================
+st.set_page_config(
+    page_title="Fraud Detection App",
+    page_icon="🛡️",
+    layout="centered"
 )
 
-# ===============================
-# Upload CSV
-# ===============================
-st.subheader(" Upload Transaction Data (CSV)")
-uploaded_file = st.file_uploader("Upload CSV file", type=["csv"])
+# =========================
+# PATH SETUP
+# =========================
+BASE_DIR = Path(__file__).resolve().parent
+MODEL_DIR = BASE_DIR / "models"
 
-if uploaded_file:
-    df = pd.read_csv(uploaded_file)
+MODEL_PATH = MODEL_DIR / "fraud_rf_smote.pkl"
+SCALER_PATH = MODEL_DIR / "scaler.pkl"
 
-    st.write("Preview Data:")
-    st.dataframe(df.head())
+# =========================
+# LOAD MODEL & SCALER
+# =========================
+@st.cache_resource
+def load_artifacts():
+    model = joblib.load(MODEL_PATH)
+    scaler = joblib.load(SCALER_PATH)
+    return model, scaler
 
-    if st.button("Run Prediction"):
-        X = df.drop(columns=["Class"], errors="ignore")
-        X_scaled = scaler.transform(X)
+model, scaler = load_artifacts()
 
-        probs = model.predict_proba(X_scaled)[:, 1]
-        preds = (probs >= 0.3).astype(int)  # custom threshold
+EXPECTED_COLUMNS = list(scaler.feature_names_in_)
 
-        df["Fraud_Probability"] = probs
-        df["Prediction"] = df["Fraud_Probability"].apply(
-            lambda x: "Fraud" if x >= 0.3 else "Non-Fraud"
-        )
+# =========================
+# UI HEADER
+# =========================
+st.title("🛡️ Credit Card Fraud Detection App")
+st.write(
+    "A machine learning application to predict whether a credit card transaction is **Fraud** or **Legitimate**."
+)
 
-        st.subheader("🔍 Prediction Result")
-        st.dataframe(df[["Fraud_Probability", "Prediction"]].head(20))
+# =========================
+# DATA CONTRACT INFO
+# =========================
+with st.expander("📄 Required CSV Format (Click to expand)", expanded=True):
+    st.markdown("""
+    **Your CSV file must meet these requirements:**
 
-        st.write("Fraud Count:")
-        st.write(df["Prediction"].value_counts())
+    - Contains **30 columns**
+    - **NO `Class` column**
+    - Column order **must match exactly**
+    - Numeric values only
 
-# ===============================
-# Demo Mode
-# ===============================
-st.subheader("Demo Mode (Random Transaction)")
+    **Expected columns:**
+    ```
+    Time, V1, V2, V3, ..., V28, Amount
+    ```
+    """)
 
-if st.button("Try Random Transaction"):
-    sample = pd.read_csv(BASE_DIR / "data" / "creditcard.csv").sample(1)
-    X_sample = sample.drop(columns=["Class"])
-    X_scaled = scaler.transform(X_sample)
+# =========================
+# CSV TEMPLATE DOWNLOAD
+# =========================
+template_df = pd.DataFrame(columns=EXPECTED_COLUMNS)
+template_csv = template_df.to_csv(index=False)
 
-    prob = model.predict_proba(X_scaled)[0, 1]
+st.download_button(
+    label="⬇️ Download CSV Template",
+    data=template_csv,
+    file_name="transaction_template.csv",
+    mime="text/csv"
+)
 
-    st.write("Transaction Data:")
-    st.dataframe(X_sample)
+st.divider()
 
-    st.metric(
-        label="Fraud Probability",
-        value=f"{prob:.2%}"
+# =========================
+# RANDOM TRANSACTION TEST
+# =========================
+st.subheader("🔄 Try Random Transaction")
+
+if st.button("Generate Random Transaction"):
+    random_data = pd.DataFrame(
+        [np.random.normal(0, 1, size=len(EXPECTED_COLUMNS))],
+        columns=EXPECTED_COLUMNS
     )
 
-    if prob >= 0.3:
-        st.error("⚠️ Fraud Detected")
-    else:
-        st.success("✅ Non-Fraud Transaction")
+    scaled_data = scaler.transform(random_data)
+    pred = model.predict(scaled_data)[0]
+    prob = model.predict_proba(scaled_data)[0][1]
+
+    st.success("Prediction completed!")
+    st.write("### Result:")
+    st.write("🚨 **FRAUD**" if pred == 1 else "✅ **LEGITIMATE**")
+    st.write(f"Fraud Probability: **{prob:.2%}**")
+
+st.divider()
+
+# =========================
+# FILE UPLOAD
+# =========================
+st.subheader("📤 Upload Transaction CSV")
+
+uploaded_file = st.file_uploader(
+    "Upload CSV file (using provided template)",
+    type=["csv"]
+)
+
+if uploaded_file:
+    try:
+        df = pd.read_csv(uploaded_file)
+
+        # Validate columns
+        if list(df.columns) != EXPECTED_COLUMNS:
+            st.error("❌ CSV format is invalid.")
+            st.write("Expected columns:")
+            st.write(EXPECTED_COLUMNS)
+            st.stop()
+
+        # Scale data
+        X_scaled = scaler.transform(df)
+
+        # Predict
+        preds = model.predict(X_scaled)
+        probs = model.predict_proba(X_scaled)[:, 1]
+
+        df_result = df.copy()
+        df_result["Fraud_Prediction"] = preds
+        df_result["Fraud_Probability"] = probs
+
+        st.success("✅ Prediction successful!")
+        st.write("### Prediction Preview")
+        st.dataframe(df_result.head())
+
+        # Download results
+        result_csv = df_result.to_csv(index=False)
+        st.download_button(
+            label="⬇️ Download Prediction Results",
+            data=result_csv,
+            file_name="fraud_prediction_results.csv",
+            mime="text/csv"
+        )
+
+    except Exception as e:
+        st.error("⚠️ An error occurred during processing.")
+        st.code(str(e))
+
+# =========================
+# FOOTER
+# =========================
+st.divider()
+st.caption(
+    "Built by Ilham Hafidz | Machine Learning & Data Analysis Project"
+)
