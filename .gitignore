@@ -1,0 +1,6 @@
+data/
+models/
+*.pkl
+*.joblib
+.DS_Store
+__pycache__/
