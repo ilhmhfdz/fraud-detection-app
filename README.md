@@ -5,7 +5,7 @@
 
 An end-to-end **Machine Learning application** to detect fraudulent credit card transactions using an **imbalanced dataset**, deployed as an **interactive Streamlit web application**.
 
-🔗 **Live Demo**: *(isi link Streamlit kamu di sini)*
+🔗 **Live Demo**: https://fraud-detection-app-bocamqysuxjd26xrwgzutq.streamlit.app/
 📦 **Repository**: [https://github.com/ilhmhfdz/fraud-detection-app](https://github.com/ilhmhfdz/fraud-detection-app)
 
 ---
@@ -177,3 +177,4 @@ Interested in Data Science, Machine Learning, and System Analysis
 This project is intended for **educational and portfolio purposes** and demonstrates an end-to-end ML workflow from data preprocessing to deployment.
 
 ---
+
